@@ -1,0 +1,131 @@
+000100 IDENTIFICATION DIVISION.                                         00010000
+000200 PROGRAM-ID. P24AP02.                                             00020000
+000300 DATA DIVISION.                                                   00030000
+000400                                                                  00040000
+000500 WORKING-STORAGE SECTION.                                         00050000
+000600 01  WS-CA.                                                       00060002
+000700     03  PASS-NAME  PIC X(20)  VALUE SPACES.                      00070000
+000800     03  PASS-ID    PIC 9(05)  VALUE ZERO.                        00080011
+000900     03  PASS-TEMP  PIC 9(01)  VALUE 1.                           00090010
+001000 01  WS-CA1         PIC X(01).                                    00100007
+001100 01  WS-NAME        PIC X(20)  VALUE SPACES.                      00110000
+001200 01  WS-ID          PIC X(05)  VALUE SPACES.                      00120000
+001300 01  WS-RESP-CODE   PIC S9(08) COMP VALUE ZERO.                   00130000
+001400 01  WS-MESSAGE     PIC X(30)  VALUE 'END OF THE PROGRAM'.        00140000
+001500 01  TEMP-ID        PIC X(01)  VALUE SPACES.                      00150000
+001600 01  TEMP-PASSWORD  PIC X(07)  VALUE SPACES.                      00160000
+001700                                                                  00170000
+001800     COPY USERREC.                                                00180000
+001900     COPY P24AS01.                                                00190000
+002000     COPY DFHAID.                                                 00200000
+002100     COPY DFHBMSCA.                                               00210000
+002200                                                                  00220000
+002300 LINKAGE SECTION.                                                 00230000
+002400 01  DFHCOMMAREA    PIC X(26).                                    00240013
+002500                                                                  00250000
+002600 PROCEDURE DIVISION.                                              00260000
+002700 MAIN-PARA.                                                       00270000
+002800     IF EIBCALEN = ZERO                                           00280001
+002900        PERFORM FIRST-PARA                                        00290001
+003000     ELSE                                                         00300001
+003100        PERFORM NEXT-PARA.                                        00310001
+003200                                                                  00320000
+003300 END-PARA.                                                        00330000
+003400     EXEC CICS RETURN                                             00340000
+003500         TRANSID('P24B')                                          00350000
+003600         COMMAREA(WS-CA)                                          00360013
+003700     END-EXEC.                                                    00370000
+003800                                                                  00380000
+003900 FIRST-PARA.                                                      00390000
+004000     MOVE LOW-VALUES TO ID2I                                      00400000
+004100     MOVE LOW-VALUES TO PWD2I                                     00410000
+004200     MOVE DFHBMUNP   TO ID2A                                      00420009
+004300     MOVE DFHBMUNP   TO PWD2A                                     00430009
+004400     MOVE DFHBMDAR   TO PWD2A                                     00440010
+004500     PERFORM SEND-MAP.                                            00450010
+004600                                                                  00460010
+004700 SEND-MAP.                                                        00470010
+004800     EXEC CICS SEND                                               00480010
+004900         MAP('LOGIN')                                             00490010
+005000         MAPSET('P24AS01')                                        00500010
+005100         FROM (LOGINO)                                            00510010
+005200         ERASE                                                    00520010
+005300     END-EXEC.                                                    00530010
+005400                                                                  00540010
+005500 NEXT-PARA.                                                       00550010
+005600     EVALUATE EIBAID                                              00560010
+005700         WHEN DFHENTER                                            00570010
+005800             PERFORM PROCESS-PARA                                 00580010
+005900         WHEN DFHPF2                                              00590010
+006000             EXEC CICS XCTL                                       00600010
+006100                 PROGRAM('P24AP01')                               00610010
+006200             END-EXEC                                             00620010
+006300         WHEN DFHPF3                                              00630010
+006400             EXEC CICS SEND TEXT                                  00640010
+006500                 FROM(WS-MESSAGE)                                 00650010
+006600                 ERASE                                            00660010
+006700             END-EXEC                                             00670010
+006800             EXEC CICS RETURN                                     00680010
+006900             END-EXEC                                             00690010
+007000         WHEN OTHER                                               00700010
+007100             MOVE 'INVALID KEY PRESSED' TO MSG2O                  00710010
+007200     END-EVALUATE.                                                00720010
+007300*    PERFORM SEND-MAP.                                            00730010
+007400                                                                  00740010
+007500 PROCESS-PARA.                                                    00750010
+007600     PERFORM RECEIVE-MAP                                          00760010
+007700     IF ID2L = ZERO OR PWD2L = ZERO                               00770010
+007800         MOVE 'ENTER DETAILS' TO MSG2O                            00780010
+007900     ELSE                                                         00790010
+008000         IF ID2I = SPACES OR PWD2I = SPACES                       00800010
+008100             MOVE 'SPACES NOT ALLOWED' TO MSG2O                   00810010
+008200         ELSE                                                     00820010
+008300             PERFORM READ-PARA                                    00830010
+008400         END-IF                                                   00840010
+008500     END-IF.                                                      00850010
+008600                                                                  00860010
+008700 READ-PARA.                                                       00870010
+008800     EXEC CICS READ                                               00880010
+008900         DATASET('P24BFILE')                                      00890010
+009000         INTO(USER-RECORD)                                        00900010
+009100         RIDFLD(ID2I)                                             00910010
+009200         RESP(WS-RESP-CODE)                                       00920010
+009300     END-EXEC                                                     00930010
+009400     EVALUATE WS-RESP-CODE                                        00940010
+009500         WHEN DFHRESP(NORMAL)                                     00950010
+009600              PERFORM ID-PASSWORD                                 00960010
+009700         WHEN DFHRESP(NOTFND)                                     00970010
+009800             MOVE 'INVALID ID' TO MSG2O                           00980010
+009900         WHEN OTHER                                               00990010
+010000             MOVE 'ERROR ACCESSING FILE' TO MSG2O                 01000010
+010100             MOVE SPACES TO ID2O, PWD2O                           01010010
+010200     END-EVALUATE.                                                01020010
+010300                                                                  01030010
+010400 ID-PASSWORD.                                                     01040010
+010500     MOVE USER-ID       TO TEMP-ID                                01050010
+010600     MOVE USER-PASSWORD TO TEMP-PASSWORD                          01060010
+010700     IF PWD2I = TEMP-PASSWORD                                     01070010
+010800         EVALUATE TEMP-ID                                         01080010
+010900             WHEN 'A'                                             01090010
+011000                 EXEC CICS XCTL                                   01100010
+011100                     PROGRAM('P24AP04')                           01110010
+011200                 END-EXEC                                         01120010
+011300             WHEN '1'                                             01130010
+011400                 MOVE USER-ID   TO PASS-ID                        01140012
+011500                 MOVE USER-NAME TO PASS-NAME                      01150010
+011600                 EXEC CICS XCTL                                   01160010
+011700                     PROGRAM('P24AP06')                           01170010
+011800                     COMMAREA(WS-CA)                              01180010
+011900                 END-EXEC                                         01190010
+012000             WHEN OTHER                                           01200010
+012100                 MOVE 'INVALID ID' TO MSG2O                       01210010
+012200         END-EVALUATE                                             01220010
+012300     ELSE                                                         01230010
+012400         MOVE 'WRONG PASSWORD' TO MSG2O.                          01240010
+012500                                                                  01250010
+012600 RECEIVE-MAP.                                                     01260010
+012700     EXEC CICS RECEIVE                                            01270010
+012800         MAP('LOGIN')                                             01280010
+012900         MAPSET('P24AS01')                                        01290010
+013000         INTO(LOGINI)                                             01300010
+013100     END-EXEC.                                                    01310010

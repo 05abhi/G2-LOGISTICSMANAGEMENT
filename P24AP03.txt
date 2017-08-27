@@ -1,0 +1,260 @@
+000100 IDENTIFICATION DIVISION.                                         00010000
+000200 PROGRAM-ID. P24AP03.                                             00020000
+000300 DATA DIVISION.                                                   00030000
+000400                                                                  00040000
+000500 WORKING-STORAGE SECTION.                                         00050000
+000600 01  WS-CA.                                                       00060007
+000700     03  AUTO-ID    PIC 9(05)  VALUE ZERO.                        00070007
+000800 01  WS-CA1         PIC X(01).                                    00080008
+000900 01  WS-RESP-CODE   PIC S9(08) COMP VALUE ZERO.                   00090000
+001000 01  WS-DATE        PIC X(10)  VALUE SPACES.                      00100000
+001100 01  VALID-AGE      PIC 9(02)  VALUE 18.                          00110008
+001200 01  VALID-YEAR     PIC 9(04)  VALUE ZERO.                        00120009
+001300 01  SYS.                                                         00130000
+001400     03  SYS-YY     PIC 9(04)  VALUE ZERO.                        00140000
+001500     03  SYS-MM     PIC 9(02)  VALUE ZERO.                        00150000
+001600     03  SYS-DD     PIC 9(02)  VALUE ZERO.                        00160000
+001700 01  WS-MESSAGE     PIC X(30)  VALUE 'END OF THE PROGRAM'.        00170000
+001800 01  WS-DATE-TIME   PIC S9(15) COMP-3 VALUE ZERO.                 00180000
+001900 01  DOB.                                                         00190000
+002000     03  DOB-YY     PIC 9(04)  VALUE ZERO.                        00200000
+002100     03  DOB-MM     PIC 9(02)  VALUE ZERO.                        00210000
+002200     03  DOB-DD     PIC 9(02)  VALUE ZERO.                        00220000
+002300 01  HIGH-VALUE-ID  PIC X(05).                                    00230000
+002400 01  TEMP-ID        PIC 9(05)  VALUE ZERO.                        00240000
+002500 01  CHECK          PIC X(01)  VALUE SPACES.                      00250000
+002600     88  ADD-SUCCESS           VALUE '1'.                         00260000
+002700     88  ADD-FAIL              VALUE '0'.                         00270000
+002800                                                                  00280000
+002900     COPY USERREC.                                                00290000
+003000     COPY P24AS01.                                                00300000
+003100     COPY DFHAID.                                                 00310000
+003200                                                                  00320000
+003300 LINKAGE SECTION.                                                 00330000
+003400 01  DFHCOMMAREA    PIC X(05).                                    00340008
+003500                                                                  00350000
+003600 PROCEDURE DIVISION.                                              00360000
+003700 MAIN-PARA.                                                       00370000
+003800     IF EIBCALEN = ZERO                                           00380000
+003900         PERFORM FIRST-PARA                                       00390000
+004000     ELSE                                                         00400000
+004100         PERFORM NEXT-PARA.                                       00410000
+004200                                                                  00420000
+004300 END-PARA.                                                        00430000
+004400     EXEC CICS RETURN                                             00440000
+004500         TRANSID('P24C')                                          00450000
+004600         COMMAREA(WS-CA)                                          00460000
+004700     END-EXEC.                                                    00470000
+004800                                                                  00480000
+004900 GENERATE-ID.                                                     00490000
+005000     MOVE HIGH-VALUES TO HIGH-VALUE-ID                            00500000
+005100     EXEC CICS STARTBR                                            00510000
+005200         FILE('P24BFILE')                                         00520000
+005300         RIDFLD(HIGH-VALUE-ID)                                    00530000
+005400     END-EXEC                                                     00540000
+005500     PERFORM READ-PREV                                            00550000
+005600         EVALUATE WS-RESP-CODE                                    00560000
+005700             WHEN DFHRESP(NORMAL)                                 00570000
+005800                 MOVE USER-ID TO TEMP-ID                          00580000
+005900                 ADD 1        TO TEMP-ID                          00590000
+006000                 MOVE TEMP-ID TO WS-CA, ID3O                      00600007
+006100                 SET ADD-SUCCESS TO TRUE                          00610000
+006200             WHEN DFHRESP(NOTFND)                                 00620000
+006300                 MOVE 'CANNOT GENERATE ID' TO MSG3O               00630000
+006400                 SET ADD-FAIL TO TRUE                             00640000
+006500             WHEN OTHER                                           00650000
+006600                 MOVE 'ERROR ACCESSING FILE' TO MSG3O             00660000
+006700             SET ADD-FAIL TO TRUE                                 00670000
+006800         END-EVALUATE                                             00680005
+006900    EXEC CICS ENDBR                                               00690000
+007000        FILE('P24BFILE')                                          00700000
+007100    END-EXEC.                                                     00710000
+007200                                                                  00720000
+007300 READ-PREV.                                                       00730000
+007400     EXEC CICS READPREV                                           00740000
+007500         FILE('P24BFILE')                                         00750000
+007600         INTO(USER-RECORD)                                        00760000
+007700         RIDFLD(HIGH-VALUE-ID)                                    00770000
+007800         RESP(WS-RESP-CODE)                                       00780000
+007900     END-EXEC.                                                    00790000
+008000                                                                  00800000
+008100 FIRST-PARA.                                                      00810000
+008200     MOVE LOW-VALUES TO REGISTRO                                  00820006
+008300     PERFORM GENERATE-ID                                          00830000
+008400     PERFORM SEND-MAP.                                            00840000
+008500                                                                  00850000
+008600 SEND-MAP.                                                        00860000
+008700     MOVE -1 TO NAME3L                                            00870012
+008800     EXEC CICS SEND                                               00880000
+008900         MAP('REGISTR')                                           00890000
+009000         MAPSET('P24AS01')                                        00900000
+009100         FROM (REGISTRO)                                          00910000
+009200         CURSOR                                                   00920012
+009300         ERASE                                                    00930000
+009400     END-EXEC.                                                    00940000
+009500                                                                  00950000
+009600 NEXT-PARA.                                                       00960000
+009700     MOVE WS-CA TO TEMP-ID , ID3O                                 00970013
+009800     EVALUATE EIBAID                                              00980000
+009900         WHEN DFHENTER                                            00990000
+010000             PERFORM VALIDATE-PARA                                01000000
+010100         WHEN DFHPF2                                              01010000
+010200             EXEC CICS XCTL                                       01020000
+010300                 PROGRAM('P24AP01')                               01030000
+010400             END-EXEC                                             01040000
+010500         WHEN DFHPF3                                              01050000
+010600             EXEC CICS SEND TEXT                                  01060000
+010700                 FROM(WS-MESSAGE)                                 01070000
+010800                 ERASE                                            01080000
+010900             END-EXEC                                             01090000
+011000             EXEC CICS RETURN                                     01100000
+011100             END-EXEC                                             01110000
+011200         WHEN OTHER                                               01120000
+011300             MOVE 'INVALID KEY PRESSED' TO MSG3O                  01130000
+011400     END-EVALUATE                                                 01140000
+011500     PERFORM SEND-MAP.                                            01150000
+011600                                                                  01160000
+011700 VALIDATE-PARA.                                                   01170000
+011800     MOVE AUTO-ID      TO ID3I                                    01180012
+011900     PERFORM DATE-TIME-PARA                                       01190000
+012000     MOVE WS-DATE(1:2) TO SYS-DD                                  01200000
+012100     MOVE WS-DATE(4:2) TO SYS-MM                                  01210000
+012200     MOVE WS-DATE(7:4) TO SYS-YY                                  01220000
+012300     COMPUTE VALID-YEAR = SYS-YY - VALID-AGE                      01230009
+012400     PERFORM RECEIVE-MAP                                          01240000
+012500     IF NAME3L  = ZERO OR                                         01250000
+012600        ADDR3L  = ZERO OR                                         01260000
+012700        CONT3L  = ZERO OR                                         01270000
+012800        PWD3L   = ZERO OR                                         01280000
+012900        DOBDD3L = ZERO OR                                         01290000
+013000        DOBMM3L = ZERO OR                                         01300000
+013100        DOBYY3L = ZERO                                            01310000
+013200        MOVE 'PLEASE ENTER DETAILS' TO MSG3O                      01320000
+013300     ELSE                                                         01330000
+013400        IF NAME3I  = SPACES OR                                    01340000
+013500           ADDR3I  = SPACES OR                                    01350000
+013600           CONT3I  = SPACES OR                                    01360000
+013700           PWD3I   = SPACES OR                                    01370000
+013800           DOBDD3I = SPACES OR                                    01380000
+013900           DOBMM3I = SPACES OR                                    01390000
+014000           DOBYY3I = SPACES                                       01400000
+014100           MOVE 'ENTER VALID DETAILS' TO MSG3O                    01410000
+014200        ELSE                                                      01420000
+014300           IF NAME3I IS NOT NUMERIC                               01430000
+014400              IF CONT3I IS NUMERIC                                01440000
+014500                 IF DOBMM3I > 0 AND DOBMM3I < 13                  01450000
+014600                    IF DOBMM3I = '01' OR                          01460000
+014700                       DOBMM3I = '03' OR                          01470000
+014800                       DOBMM3I = '05' OR                          01480000
+014900                       DOBMM3I = '07' OR                          01490000
+015000                       DOBMM3I = '08' OR                          01500000
+015100                       DOBMM3I = '10' OR                          01510000
+015200                       DOBMM3I = '12'                             01520000
+015300                       IF DOBDD3I > 0 AND DOBDD3I < 32            01530000
+015400                          IF DOBYY3I < VALID-YEAR                 01540009
+015500                             PERFORM ADD-PARA                     01550000
+015600                          ELSE                                    01560000
+015700                             MOVE -1 TO DOBYY3L                   01570011
+015800                             MOVE '18+ AGE REQUIRED' TO MSG3O     01580011
+015900                          END-IF                                  01590000
+016000                       ELSE                                       01600000
+016100                          MOVE -1 TO DOBDD3L                      01610010
+016200                          MOVE 'INVALID DATE' TO MSG3O            01620000
+016300                       END-IF                                     01630000
+016400                    ELSE                                          01640000
+016500                       IF DOBMM3I = '04' OR                       01650000
+016600                          DOBMM3I = '06' OR                       01660000
+016700                          DOBMM3I = '09' OR                       01670000
+016800                          DOBMM3I = '11'                          01680000
+016900                          IF DOBDD3I > 0 AND DOBDD3I < 31         01690000
+017000                             IF DOBYY3I < VALID-YEAR              01700009
+017100                                PERFORM ADD-PARA                  01710000
+017200                             ELSE                                 01720000
+017300                                MOVE -1 TO DOBYY3L                01730010
+017400                                MOVE '18+ AGE REQUIRED' TO MSG3O  01740011
+017500                             END-IF                               01750000
+017600                          ELSE                                    01760000
+017700                             MOVE -1 TO DOBDD3L                   01770010
+017800                             MOVE 'INVALID DATE' TO MSG3O         01780000
+017900                          END-IF                                  01790000
+018000                       ELSE                                       01800000
+018100                          IF DOBDD3I > 0 AND DOBDD3I < 29         01810000
+018200                             IF DOBYY3I < VALID-YEAR              01820009
+018300                                PERFORM ADD-PARA                  01830000
+018400                             ELSE                                 01840000
+018500                                MOVE -1 TO DOBYY3L                01850010
+018600                                MOVE '18+ AGE REQUIRED' TO MSG3O  01860011
+018700                             END-IF                               01870000
+018800                          ELSE                                    01880000
+018900                             MOVE -1 TO DOBDD3L                   01890010
+019000                             MOVE 'INVALID DATE' TO MSG3O         01900000
+019100                          END-IF                                  01910000
+019200                       END-IF                                     01920000
+019300                    END-IF                                        01930000
+019400                 ELSE                                             01940000
+019500                    MOVE -1 TO DOBMM3L                            01950010
+019600                    MOVE 'INVALID MONTH' TO MSG3O                 01960000
+019700                 END-IF                                           01970000
+019800              ELSE                                                01980000
+019900                 MOVE -1 TO CONT3L                                01990010
+020000               MOVE 'NUMERIC FIELDS REQUIRED IN CONTACT' TO MSG3O 02000000
+020100              END-IF                                              02010000
+020200           ELSE                                                   02020000
+020300              MOVE -1 TO NAME3L                                   02030010
+020400            MOVE 'NAME CANNOT HAVE NUMERIC FIELDS' TO MSG3O       02040000
+020500           END-IF                                                 02050000
+020600        END-IF                                                    02060000
+020700     END-IF.                                                      02070000
+020800                                                                  02080000
+020900 ADD-PARA.                                                        02090000
+021000*    EVALUATE TRUE                                                02100003
+021100*        WHEN ADD-SUCCESS                                         02110003
+021200              PERFORM MOVE-PARA                                   02120008
+021300              PERFORM WRITE-PARA                                  02130009
+021400              EXEC CICS XCTL                                      02140008
+021500                 PROGRAM('P24AP02')                               02150008
+021600              END-EXEC.                                           02160008
+021700*    END-EVALUATE.                                                02170003
+021800                                                                  02180000
+021900 WRITE-PARA.                                                      02190000
+022000     EXEC CICS WRITE                                              02200000
+022100         FILE('P24BFILE')                                         02210000
+022200         RIDFLD(USER-ID)                                          02220006
+022300         FROM(USER-RECORD)                                        02230006
+022400         RESP(WS-RESP-CODE)                                       02240000
+022500     END-EXEC                                                     02250000
+022600     EVALUATE WS-RESP-CODE                                        02260000
+022700         WHEN DFHRESP(NORMAL)                                     02270000
+022800            MOVE 'ADD SUCCESSFUL' TO MSG3O                        02280000
+022900         WHEN OTHER                                               02290000
+023000            MOVE 'ADD NOT SUCCESSFUL' TO MSG3O                    02300000
+023100     END-EVALUATE.                                                02310000
+023200                                                                  02320000
+023300 MOVE-PARA.                                                       02330006
+023400     MOVE TEMP-ID TO USER-ID                                      02340008
+023500     MOVE NAME3I  TO USER-NAME                                    02350000
+023600     MOVE ADDR3I  TO USER-ADDRESS                                 02360000
+023700     MOVE CONT3I  TO USER-CONTACT                                 02370000
+023800     MOVE PWD3I   TO USER-PASSWORD                                02380000
+023900     MOVE DOBDD3I TO DOB-DD                                       02390000
+024000     MOVE DOBMM3I TO DOB-MM                                       02400000
+024100     MOVE DOBYY3I TO DOB-YY                                       02410000
+024200     MOVE DOB     TO USER-DOB                                     02420006
+024300     MOVE USER-ID TO MSG3O.                                       02430007
+024400                                                                  02440000
+024500 RECEIVE-MAP.                                                     02450000
+024600     EXEC CICS RECEIVE                                            02460000
+024700         MAP('REGISTR')                                           02470000
+024800         MAPSET('P24AS01')                                        02480000
+024900         INTO(REGISTRI)                                           02490000
+025000     END-EXEC.                                                    02500000
+025100                                                                  02510000
+025200 DATE-TIME-PARA.                                                  02520000
+025300     EXEC CICS ASKTIME                                            02530000
+025400         ABSTIME(WS-DATE-TIME)                                    02540000
+025500     END-EXEC                                                     02550000
+025600     EXEC CICS FORMATTIME                                         02560000
+025700         ABSTIME(WS-DATE-TIME)                                    02570000
+025800         DDMMYYYY(WS-DATE)                                        02580000
+025900         DATESEP                                                  02590000
+026000     END-EXEC.                                                    02600000
